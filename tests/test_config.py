@@ -15,7 +15,6 @@ from mazegen.view_state import ViewState
 def write_config(
     path: Path,
     output: Path,
-    display: str = "ascii",
     algorithm: str | None = None,
 ) -> None:
     algorithm_line = "" if algorithm is None else f"ALGORITHM={algorithm}\n"
@@ -27,21 +26,12 @@ def write_config(
         f"OUTPUT_FILE={output}\n"
         "PERFECT=False\n"
         "SEED=42\n"
-        f"{algorithm_line}"
-        f"DISPLAY={display}\n",
+        f"{algorithm_line}",
         encoding="utf-8",
     )
 
 
 class ConfigTests(unittest.TestCase):
-    def test_ascii_display_is_read_from_config(self) -> None:
-        with TemporaryDirectory() as directory:
-            root = Path(directory)
-            config_path = root / "config.txt"
-            write_config(config_path, root / "maze.txt", "ASCII")
-
-            self.assertEqual(load_config(config_path).display, "ascii")
-
     def test_algorithm_defaults_and_is_case_insensitive(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -72,10 +62,7 @@ class ConfigTests(unittest.TestCase):
             stderr = StringIO()
 
             with redirect_stderr(stderr):
-                result = main(
-                    ["a_maze_ing.py", str(config_path)],
-                    {"ascii": lambda _state: None},
-                )
+                result = main(["a_maze_ing.py", str(config_path)])
 
             self.assertEqual(result, 1)
             self.assertIn("Unknown generation algorithm", stderr.getvalue())
@@ -92,11 +79,11 @@ class ConfigTests(unittest.TestCase):
                 algorithm="randomized_prim",
             )
 
-            with redirect_stderr(StringIO()):
-                result = main(
-                    ["a_maze_ing.py", str(config_path)],
-                    {"ascii": displayed.append},
-                )
+            with (
+                patch("a_maze_ing.run_ascii", side_effect=displayed.append),
+                redirect_stderr(StringIO()),
+            ):
+                result = main(["a_maze_ing.py", str(config_path)])
 
             expected = MazeGenerator(
                 GenerationSpec(4, 3, False, 42),
@@ -106,13 +93,17 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertEqual(displayed[0].maze, expected)
 
-    def test_unknown_display_is_rejected(self) -> None:
+    def test_display_is_no_longer_a_config_option(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
             config_path = root / "config.txt"
-            write_config(config_path, root / "maze.txt", "browser")
+            write_config(config_path, root / "maze.txt")
+            config_path.write_text(
+                config_path.read_text(encoding="utf-8") + "DISPLAY=ascii\n",
+                encoding="utf-8",
+            )
 
-            with self.assertRaises(ConfigError):
+            with self.assertRaisesRegex(ConfigError, "unknown key 'DISPLAY'"):
                 load_config(config_path)
 
     def test_cli_accepts_exactly_one_config_argument(self) -> None:
@@ -201,10 +192,7 @@ class ConfigTests(unittest.TestCase):
             original = config_path.read_text(encoding="utf-8")
             stderr = StringIO()
             with redirect_stderr(stderr):
-                result = main(
-                    ["a_maze_ing.py", str(config_path)],
-                    {"ascii": lambda _state: None},
-                )
+                result = main(["a_maze_ing.py", str(config_path)])
 
             self.assertEqual(result, 1)
             self.assertIn("must not overwrite", stderr.getvalue())
@@ -213,10 +201,7 @@ class ConfigTests(unittest.TestCase):
             write_config(config_path, root)
             stderr = StringIO()
             with redirect_stderr(stderr):
-                result = main(
-                    ["a_maze_ing.py", str(config_path)],
-                    {"ascii": lambda _state: None},
-                )
+                result = main(["a_maze_ing.py", str(config_path)])
 
             self.assertEqual(result, 1)
             self.assertIn("must name a file", stderr.getvalue())
@@ -237,10 +222,7 @@ class ConfigTests(unittest.TestCase):
             stderr = StringIO()
 
             with redirect_stderr(stderr):
-                result = main(
-                    ["a_maze_ing.py", str(config_path)],
-                    {"ascii": lambda _state: None},
-                )
+                result = main(["a_maze_ing.py", str(config_path)])
 
             self.assertEqual(result, 1)
             self.assertIn("ENTRY collides with the 42 pattern", stderr.getvalue())
@@ -281,10 +263,7 @@ class ConfigTests(unittest.TestCase):
             stderr = StringIO()
 
             with redirect_stderr(stderr):
-                result = main(
-                    ["a_maze_ing.py", str(config_path)],
-                    {"ascii": lambda _state: None},
-                )
+                result = main(["a_maze_ing.py", str(config_path)])
 
             self.assertEqual(result, 1)
             self.assertIn("Error:", stderr.getvalue())
@@ -300,15 +279,12 @@ class ConfigTests(unittest.TestCase):
                 patch("a_maze_ing.MazeGenerator", side_effect=MemoryError),
                 redirect_stderr(stderr),
             ):
-                result = main(
-                    ["a_maze_ing.py", str(config_path)],
-                    {"ascii": lambda _state: None},
-                )
+                result = main(["a_maze_ing.py", str(config_path)])
 
             self.assertEqual(result, 1)
             self.assertIn("not enough memory", stderr.getvalue())
 
-    def test_small_maze_warning_and_injected_display(self) -> None:
+    def test_small_maze_warning_and_ascii_view(self) -> None:
         displayed: list[ViewState] = []
 
         with TemporaryDirectory() as directory:
@@ -317,11 +293,11 @@ class ConfigTests(unittest.TestCase):
             write_config(config_path, root / "maze.txt")
             stderr = StringIO()
 
-            with redirect_stderr(stderr):
-                result = main(
-                    ["a_maze_ing.py", str(config_path)],
-                    {"ascii": displayed.append},
-                )
+            with (
+                patch("a_maze_ing.run_ascii", side_effect=displayed.append),
+                redirect_stderr(stderr),
+            ):
+                result = main(["a_maze_ing.py", str(config_path)])
 
             self.assertEqual(result, 0)
             self.assertEqual(len(displayed), 1)

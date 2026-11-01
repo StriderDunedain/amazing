@@ -1,8 +1,6 @@
 import unittest
 
-from mazegen.builder import MazeBuilder
-from mazegen.maze import Maze
-from mazegen.presentation import (
+from mazegen.ascii_view import (
     CellRole,
     Command,
     cell_role,
@@ -10,6 +8,8 @@ from mazegen.presentation import (
     handle_command,
     visible_path,
 )
+from mazegen.builder import MazeBuilder
+from mazegen.maze import Maze
 from mazegen.view_state import ViewState
 
 
@@ -21,8 +21,8 @@ def make_state() -> ViewState:
     return ViewState(maze, (0, 0), (1, 0), lambda: (maze, path), path)
 
 
-class PresentationTests(unittest.TestCase):
-    def test_cell_roles_and_path_visibility_are_shared(self) -> None:
+class AsciiViewTests(unittest.TestCase):
+    def test_cell_roles_and_path_visibility(self) -> None:
         state = make_state()
 
         self.assertEqual(cell_role(state, (0, 0)), CellRole.ENTRY)

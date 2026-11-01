@@ -6,4 +6,3 @@ OUTPUT_FILE=maze.txt
 PERFECT=False
 SEED=42
 ALGORITHM=growing_tree
-DISPLAY=ascii

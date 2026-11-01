@@ -4,9 +4,8 @@ from pathlib import Path
 from types import MappingProxyType
 
 from mazegen.algorithms import growing_tree, randomized_prim
-from mazegen.application import Display, MazeApplication
+from mazegen.ascii_view import run_ascii
 from mazegen.config import ConfigError, load_config
-from mazegen.display import DEFAULT_DISPLAYS, resolve_display
 from mazegen.generator import GenerationAlgorithm, MazeGenerator
 from mazegen.pattern import make_42_pattern
 
@@ -30,11 +29,8 @@ def resolve_algorithm(name: str) -> GenerationAlgorithm:
         ) from error
 
 
-def main(
-    argv: Sequence[str] | None = None,
-    displays: Mapping[str, Display] = DEFAULT_DISPLAYS,
-) -> int:
-    """Load configuration, generate the maze, and run its selected display."""
+def main(argv: Sequence[str] | None = None) -> int:
+    """Load configuration, generate the maze, and run the ASCII view."""
     arguments = sys.argv if argv is None else argv
 
     if len(arguments) != 2:
@@ -47,7 +43,6 @@ def main(
     try:
         config_path = Path(arguments[1])
         config = load_config(config_path)
-        display = resolve_display(config.display, displays)
         algorithm = resolve_algorithm(config.algorithm)
         pattern = make_42_pattern(config.width, config.height)
 
@@ -73,15 +68,12 @@ def main(
             algorithm=algorithm,
         )
 
-        application = MazeApplication(
-            generate=generator.generate,
-            display=display,
+        state = generator.build_state(
             entry=config.entry,
             exit_=config.exit_,
             output_file=config.output_file,
         )
-
-        application.run()
+        run_ascii(state)
 
     except MemoryError:
         print(

@@ -15,7 +15,6 @@ REQUIRED_KEYS = {
 
 OPTIONAL_KEYS = {
     "ALGORITHM",
-    "DISPLAY",
     "SEED",
 }
 
@@ -38,7 +37,7 @@ class GenerationSpec:
 
 @dataclass(frozen=True)
 class Config:
-    """Contain validated maze and display configuration."""
+    """Contain validated maze configuration."""
 
     width: int
     height: int
@@ -48,7 +47,6 @@ class Config:
     perfect: bool
     seed: int | None = None
     algorithm: str = "growing_tree"
-    display: str = "ascii"
 
     @property
     def generation_spec(self) -> GenerationSpec:
@@ -72,7 +70,6 @@ class ParsedConfig(TypedDict):
     perfect: bool
     seed: int | None
     algorithm: str
-    display: str
 
 
 def validate_config(config: Config) -> None:
@@ -87,8 +84,6 @@ def validate_config(config: Config) -> None:
         raise ConfigError("ENTRY is outside the maze")
     if not position_in_bounds(config.exit_, config.width, config.height):
         raise ConfigError("EXIT is outside the maze")
-    if config.display.lower() != "ascii":
-        raise ConfigError("DISPLAY must be 'ascii'")
 
 
 def load_config(path: str | Path) -> Config:
@@ -115,7 +110,6 @@ def convert_config(raw: dict[str, str]) -> ParsedConfig:
         "perfect": parse_bool(raw["PERFECT"], "PERFECT"),
         "seed": (parse_int(raw["SEED"], "SEED") if "SEED" in raw else None),
         "algorithm": raw.get("ALGORITHM", "growing_tree").lower(),
-        "display": raw.get("DISPLAY", "ascii").lower(),
     }
 
 

@@ -8,11 +8,12 @@ A-Maze-ing reads a configuration file, generates a reproducible maze, writes
 its hexadecimal wall representation and shortest entry-to-exit path, and opens
 an interactive terminal ASCII visualization.
 
-The reusable `mazegen` package separates maze generation from configuration,
-file output, and display code. Perfect mode creates a spanning-tree maze with
-one path between every pair of corridor cells. Non-perfect mode braids that
-maze into a Pac-Man-like board with at least two independent loops, no open
-3-by-3 area, full connectivity, and at most two real dead ends.
+The reusable `mazegen` package exposes maze generation, shortest-path access,
+and output helpers. The CLI uses one interactive terminal ASCII view. Perfect
+mode creates a spanning-tree maze with one path between every pair of corridor
+cells. Non-perfect mode braids that maze into a Pac-Man-like board with at
+least two independent loops, no open 3-by-3 area, full connectivity, and at
+most two real dead ends.
 
 ## Features
 
@@ -71,7 +72,6 @@ with `#` are ignored.
 | `PERFECT` | yes | `True` for one path, `False` for a braided board | `PERFECT=False` |
 | `SEED` | no | Reproducible random seed | `SEED=42` |
 | `ALGORITHM` | no | `growing_tree` (default) or `randomized_prim` | `ALGORITHM=growing_tree` |
-| `DISPLAY` | no | Display mode; currently `ascii` only | `DISPLAY=ascii` |
 
 ## Controls
 
@@ -148,7 +148,7 @@ contains the entry coordinate, exit coordinate, and shortest path encoded with
 - Each generated maze calculates its path once; output and visualization share
   that stored result.
 - `Maze` is a read-only topology model; `MazeBuilder` owns checked mutations.
-- The reusable generation algorithm and runtime display are injected.
+- Generation algorithms are injected; ASCII is the single built-in view.
 - The ASCII renderer consumes presentation state without owning generation.
 - Pattern placement, braiding, subject validation, and file output remain
   direct internal collaborators because the project has only one of each.
@@ -161,8 +161,8 @@ configuration, output, visualization, packaging, and testing.
 The initial plan was to finish generation and output first, then add the visual
 layer. Tight time constraints led to duplicated debug/rendering code and limited
 automated tests. The final cleanup consolidated diagnostics into unit tests,
-added package and lint automation, and separated display selection from maze
-generation.
+added package and lint automation, and removed obsolete display-selection code
+after settling on terminal ASCII.
 
 The seeded generator and graph validations worked well. Earlier integration of
 tests, packaging, and renderer boundaries would have reduced late refactoring.

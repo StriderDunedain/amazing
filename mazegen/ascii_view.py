@@ -1,17 +1,12 @@
 import sys
 import termios
 import tty
+from collections.abc import Set as AbstractSet
+from enum import Enum, auto
 
 from .colors import ANSI_RESET, color
 from .maze import Directions as D
-from .presentation import (
-    CellRole,
-    cell_role,
-    command_from_key,
-    handle_command,
-    role_color_index,
-    visible_path,
-)
+from .maze import Position
 from .view_state import ViewState
 
 CLEAR_SCREEN = "\033[2J\033[H"
@@ -21,12 +16,109 @@ EAST_MASK = int(D.EAST)
 SOUTH_MASK = int(D.SOUTH)
 WEST_MASK = int(D.WEST)
 
+ENTRY_COLOR_INDEX = 2
+EXIT_COLOR_INDEX = 1
+
+
+class CellRole(Enum):
+    """Describe the visual meaning of a maze cell."""
+
+    NORMAL = auto()
+    BLOCKED = auto()
+    ENTRY = auto()
+    EXIT = auto()
+    PATH = auto()
+
+
+class Command(Enum):
+    """Describe an interactive terminal command."""
+
+    REGENERATE = auto()
+    TOGGLE_PATH = auto()
+    NEXT_WALL_COLOR = auto()
+    NEXT_PATTERN_COLOR = auto()
+    NEXT_PATH_COLOR = auto()
+    QUIT = auto()
+
+
+KEY_COMMANDS = {
+    "r": Command.REGENERATE,
+    "p": Command.TOGGLE_PATH,
+    "c": Command.NEXT_WALL_COLOR,
+    "4": Command.NEXT_PATTERN_COLOR,
+    "v": Command.NEXT_PATH_COLOR,
+    "q": Command.QUIT,
+    "\x1b": Command.QUIT,
+}
+
 CELL_MARKERS = {
     CellRole.BLOCKED: "###",
     CellRole.ENTRY: " S ",
     CellRole.EXIT: " E ",
     CellRole.PATH: " ■ ",
 }
+
+
+def visible_path(state: ViewState) -> frozenset[Position]:
+    """Return the path cells when shortest-path display is enabled."""
+    if not state.show_path:
+        return frozenset()
+    return frozenset(state.path)
+
+
+def cell_role(
+    state: ViewState,
+    position: Position,
+    path: AbstractSet[Position] | None = None,
+) -> CellRole:
+    """Resolve a cell's visual role with a consistent priority."""
+    if state.maze.is_blocked(position):
+        return CellRole.BLOCKED
+    if position == state.entry:
+        return CellRole.ENTRY
+    if position == state.exit_:
+        return CellRole.EXIT
+    if position in (visible_path(state) if path is None else path):
+        return CellRole.PATH
+    return CellRole.NORMAL
+
+
+def role_color_index(state: ViewState, role: CellRole) -> int | None:
+    """Return the palette index for a visible cell role."""
+    match role:
+        case CellRole.BLOCKED:
+            return state.pattern_color
+        case CellRole.ENTRY:
+            return ENTRY_COLOR_INDEX
+        case CellRole.EXIT:
+            return EXIT_COLOR_INDEX
+        case CellRole.PATH:
+            return state.path_color
+        case CellRole.NORMAL:
+            return None
+
+
+def command_from_key(key: str) -> Command | None:
+    """Translate one terminal key into a command."""
+    return KEY_COMMANDS.get(key.lower())
+
+
+def handle_command(state: ViewState, command: Command) -> bool:
+    """Apply a command and return whether the view should keep running."""
+    match command:
+        case Command.REGENERATE:
+            state.regenerate()
+        case Command.TOGGLE_PATH:
+            state.toggle_path()
+        case Command.NEXT_WALL_COLOR:
+            state.cycle_wall_color()
+        case Command.NEXT_PATTERN_COLOR:
+            state.cycle_pattern_color()
+        case Command.NEXT_PATH_COLOR:
+            state.cycle_path_color()
+        case Command.QUIT:
+            return False
+    return True
 
 
 def paint(text: str, color_index: int) -> str:
