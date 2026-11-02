@@ -85,10 +85,11 @@ class ConfigTests(unittest.TestCase):
             ):
                 result = main(["a_maze_ing.py", str(config_path)])
 
-            expected = MazeGenerator(
-                GenerationSpec(4, 3, False, 42),
-                randomized_prim,
-            ).generate()
+            with redirect_stderr(StringIO()):
+                expected = MazeGenerator(
+                    GenerationSpec(4, 3, False, 42),
+                    randomized_prim,
+                ).generate()
 
             self.assertEqual(result, 0)
             self.assertEqual(displayed[0].maze, expected)

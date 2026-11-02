@@ -7,7 +7,7 @@ from .maze import ALL_WALLS, WALL_DELTA, Maze, Position
 class MazeBuilder:
     """Apply checked topology mutations to a maze."""
 
-    _maze: Maze
+    _maze: Maze  # How does this get called exactly?
 
     @property
     def maze(self) -> Maze:

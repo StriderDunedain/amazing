@@ -26,16 +26,22 @@ class MazeGenerator:
         repr=False,
         compare=False,
     )
+    _pattern: set[Position] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
         """Initialize the reproducible sequence used across regenerations."""
         self._rng = random.Random(self.spec.seed)
+        self._pattern = make_42_pattern(self.spec.width, self.spec.height)
 
     def generate(self) -> Maze:
         """Generate and validate one maze using the configured parameters."""
         maze = Maze.create(self.spec.width, self.spec.height)
         builder = MazeBuilder(maze)
-        builder.block_cells(make_42_pattern(self.spec.width, self.spec.height))
+        builder.block_cells(self._pattern)
 
         self.algorithm(builder, self._rng)
 
@@ -55,9 +61,13 @@ class MazeGenerator:
         """Generate a maze, write it, and return its shortest path."""
         maze = self.generate()
 
+        if maze.is_blocked(entry):
+            raise ValueError("ENTRY collides with the 42 pattern")
         if not valid_endpoint(maze, entry):
             raise ValueError(f"Invalid ENTRY: {entry}")
 
+        if maze.is_blocked(exit_):
+            raise ValueError("EXIT collides with the 42 pattern")
         if not valid_endpoint(maze, exit_):
             raise ValueError(f"Invalid EXIT: {exit_}")
 

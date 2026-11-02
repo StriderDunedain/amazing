@@ -1,4 +1,6 @@
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -10,7 +12,8 @@ from mazegen.generator import MazeGenerator
 
 class RuntimeTests(unittest.TestCase):
     def test_generator_builds_state_and_persists_regeneration(self) -> None:
-        generator = MazeGenerator(GenerationSpec(2, 1, True, 42), growing_tree)
+        with redirect_stderr(StringIO()):
+            generator = MazeGenerator(GenerationSpec(2, 1, True, 42), growing_tree)
 
         with TemporaryDirectory() as directory:
             output = Path(directory) / "maze.txt"

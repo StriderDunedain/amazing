@@ -1,5 +1,7 @@
 import random
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 
 from mazegen import MazeGenerator, randomized_prim
 from mazegen.algorithms import (
@@ -33,10 +35,11 @@ class GenerationTests(unittest.TestCase):
         algorithm: GenerationAlgorithm = growing_tree,
     ) -> MazeGenerator:
         """Build the production generator from an explicit generation spec."""
-        return MazeGenerator(
-            GenerationSpec(width, height, perfect, seed),
-            algorithm,
-        )
+        with redirect_stderr(StringIO()):
+            return MazeGenerator(
+                GenerationSpec(width, height, perfect, seed),
+                algorithm,
+            )
 
     def test_perfect_generation_invariants(self) -> None:
         for algorithm in (growing_tree, randomized_prim):
@@ -106,7 +109,11 @@ class GenerationTests(unittest.TestCase):
         self.assertNotEqual(growing, prim)
 
     def test_pattern_has_a_surrounding_corridor(self) -> None:
-        self.assertEqual(make_42_pattern(9, 6), set())
+        stderr = StringIO()
+        with redirect_stderr(stderr):
+            self.assertEqual(make_42_pattern(9, 6), set())
+
+        self.assertIn("continuing without it", stderr.getvalue())
 
         pattern = make_42_pattern(10, 7)
         self.assertEqual(len(pattern), 18)
@@ -135,13 +142,12 @@ class GenerationTests(unittest.TestCase):
 
     def test_generation_algorithm_is_injected(self) -> None:
         generated: list[Maze] = []
-        spec = GenerationSpec(2, 2, True, seed=42)
 
         def algorithm(builder: MazeBuilder, rng: random.Random) -> None:
             generated.append(builder.maze)
             growing_tree(builder, rng)
 
-        maze = MazeGenerator(spec, algorithm).generate()
+        maze = self.generator(2, 2, True, 42, algorithm).generate()
 
         self.assertEqual(generated, [maze])
 

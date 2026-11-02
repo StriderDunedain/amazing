@@ -7,7 +7,6 @@ from mazegen.algorithms import growing_tree, randomized_prim
 from mazegen.ascii_view import run_ascii
 from mazegen.config import ConfigError, load_config
 from mazegen.generator import GenerationAlgorithm, MazeGenerator
-from mazegen.pattern import make_42_pattern
 
 DEFAULT_ALGORITHMS: Mapping[str, GenerationAlgorithm] = MappingProxyType(
     {
@@ -44,24 +43,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         config_path = Path(arguments[1])
         config = load_config(config_path)
         algorithm = resolve_algorithm(config.algorithm)
-        pattern = make_42_pattern(config.width, config.height)
 
         if config_path.resolve() == config.output_file.resolve():
             raise ConfigError("OUTPUT_FILE must not overwrite the configuration file")
 
         if config.output_file.exists() and config.output_file.is_dir():
             raise ConfigError("OUTPUT_FILE must name a file, not a directory")
-
-        if not pattern:
-            print(
-                "Error: maze is too small to contain the 42 pattern; "
-                "continuing without it",
-                file=sys.stderr,
-            )
-        elif config.entry in pattern:
-            raise ConfigError("ENTRY collides with the 42 pattern")
-        elif config.exit_ in pattern:
-            raise ConfigError("EXIT collides with the 42 pattern")
 
         generator = MazeGenerator(
             spec=config.generation_spec,

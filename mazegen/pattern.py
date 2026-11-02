@@ -1,3 +1,5 @@
+import sys
+
 from .maze import Position
 
 PATTERN_42 = (
@@ -17,6 +19,11 @@ def make_42_pattern(width: int, height: int) -> set[Position]:
     # Keep a corridor around the pattern and, in particular, keep (0, 0)
     # available as the generation starting point.
     if width < pattern_width + 2 or height < pattern_height + 2:
+        print(
+            "Warning: maze is too small to contain the 42 pattern; "
+            "continuing without it",
+            file=sys.stderr,
+        )
         return set()
 
     offset_x = (width - pattern_width) // 2
