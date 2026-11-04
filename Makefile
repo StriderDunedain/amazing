@@ -1,7 +1,7 @@
 PYTHON ?= python3
 CONFIG ?= config.txt
 
-.PHONY: install run debug clean lint lint-strict test build
+.PHONY: install run debug clean lint lint-strict build
 
 install:
 	$(PYTHON) -m ensurepip --upgrade
@@ -14,8 +14,7 @@ debug:
 	$(PYTHON) -m pdb a_maze_ing.py $(CONFIG)
 
 clean:
-	find . -path ./.venv -prune -o -path ./mlx_CLXV -prune -o \
-		-type d -name __pycache__ -exec rm -rf {} +
+	find . -path ./.venv -prune -o -type d -name __pycache__ -exec rm -rf {} +
 	rm -rf .mypy_cache .ruff_cache build dist *.egg-info
 
 lint:
@@ -27,9 +26,6 @@ lint:
 lint-strict:
 	$(PYTHON) -m flake8 .
 	$(PYTHON) -m mypy . --strict
-
-test:
-	$(PYTHON) -m unittest discover -v
 
 build:
 	$(PYTHON) -m build

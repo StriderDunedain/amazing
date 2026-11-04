@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from enum import IntFlag
@@ -82,49 +83,46 @@ class Maze:
     def in_bounds(self, pos: Position) -> bool:
         """Return whether a position lies inside the maze."""
         x, y = pos
-
         return 0 <= x < self.width and 0 <= y < self.height
+
+    def positions(self) -> Iterator[Position]:
+        """Iterate over every maze position row by row."""
+        return ((x, y) for y in range(self.height) for x in range(self.width))
+
+    def corridors(self) -> Iterator[Position]:
+        """Iterate over every non-blocked maze position."""
+        return (pos for pos in self.positions() if not self.is_blocked(pos))
 
     def connected_neighbors(self, pos: Position) -> list[Position]:
         """Return neighbors connected through open shared walls."""
-        x, y = pos
-        connected: list[Position] = []
-
-        for (dx, dy), (wall, _) in WALL_DELTA.items():
-            neighbor = (x + dx, y + dy)
-
-            if not self.in_bounds(neighbor) or self.is_blocked(neighbor):
-                continue
-
-            if not self[x, y] & wall:
-                connected.append(neighbor)
-
-        return connected
+        return self._neighbors_by_wall(pos, closed=False)
 
     def closed_neighbors(self, pos: Position) -> list[Position]:
         """Return adjacent corridor cells separated by a closed wall."""
+        return self._neighbors_by_wall(pos, closed=True)
+
+    def _neighbors_by_wall(
+        self,
+        pos: Position,
+        closed: bool,
+    ) -> list[Position]:
+        """Return corridor neighbors matching the requested wall state."""
         x, y = pos
-        closed: list[Position] = []
-
-        for (dx, dy), (wall, _) in WALL_DELTA.items():
-            neighbor = (x + dx, y + dy)
-
-            if not self.in_bounds(neighbor) or self.is_blocked(neighbor):
-                continue
-
-            if self[x, y] & wall:
-                closed.append(neighbor)
-
-        return closed
+        cell = self[pos]
+        return [
+            neighbor
+            for (dx, dy), (wall, _) in WALL_DELTA.items()
+            if self.in_bounds(neighbor := (x + dx, y + dy))
+            and not self.is_blocked(neighbor)
+            and bool(cell & wall) is closed
+        ]
 
     def candidates(self, pos: Position) -> list[Position]:
         """Return adjacent in-bounds positions that are not blocked."""
         x, y = pos
-
-        candidates = [(x + dx, y + dy) for dx, dy in WALL_DELTA]
-
         return [
-            candidate
-            for candidate in candidates
-            if self.in_bounds(candidate) and not self.is_blocked(candidate)
+            neighbor
+            for dx, dy in WALL_DELTA
+            if self.in_bounds(neighbor := (x + dx, y + dy))
+            and not self.is_blocked(neighbor)
         ]

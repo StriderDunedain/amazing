@@ -13,9 +13,6 @@ DELTA_TO_DIRECTION = {
     (-1, 0): "W",
 }
 
-EAST_MASK = int(D.EAST)
-SOUTH_MASK = int(D.SOUTH)
-
 
 def growing_tree(builder: MazeBuilder, rng: random.Random) -> None:
     """Carve a perfect maze with the last-cell Growing Tree strategy."""
@@ -132,51 +129,12 @@ def path_to_directions(path: list[Position]) -> str:
 
 def dead_ends(maze: Maze) -> list[Position]:
     """Return corridor cells having exactly one connected neighbor."""
-    return [
-        pos
-        for y in range(maze.height)
-        for x in range(maze.width)
-        if not maze.is_blocked(pos := (x, y))
-        and len(maze.connected_neighbors(pos)) == 1
-    ]
+    return [pos for pos in maze.corridors() if len(maze.connected_neighbors(pos)) == 1]
 
 
 def edge_count(maze: Maze) -> int:
     """Count open passages in the undirected maze graph."""
-    total = 0
-
-    for y in range(maze.height):
-        for x in range(maze.width):
-            if maze.is_blocked(position := (x, y)):
-                continue
-
-            walls = int(maze[position])
-
-            if x + 1 < maze.width:
-                east = (x + 1, y)
-                if not maze.is_blocked(east) and not walls & EAST_MASK:
-                    total += 1
-
-            if y + 1 < maze.height:
-                south = (x, y + 1)
-                if not maze.is_blocked(south) and not walls & SOUTH_MASK:
-                    total += 1
-
-    return total
-
-
-# Previous implementation, retained for comparison:
-# def edge_count(maze: Maze) -> int:
-#     """Count open passages in the undirected maze graph."""
-#     return (
-#         sum(
-#             len(maze.connected_neighbors(pos))
-#             for x in range(maze.width)
-#             for y in range(maze.height)
-#             if not maze.is_blocked(pos := (x, y))
-#         )
-#         // 2
-#     )
+    return sum(len(maze.connected_neighbors(pos)) for pos in maze.corridors()) // 2
 
 
 def can_open_passage(maze: Maze, current: Position, potential: Position) -> bool:
@@ -196,15 +154,12 @@ def affected_windows(
     x1, y1 = current
     x2, y2 = potential
 
-    # If horizontally adjacent
     if y1 == y2:
-        left = min(x1, x2)  # Use the left-hand cell
-
+        left = min(x1, x2)
         xs = [left - 1, left]
         ys = [y1 - 2, y1 - 1, y1]
     else:
         top = min(y1, y2)
-
         xs = [x1 - 2, x1 - 1, x1]
         ys = [top - 1, top]
 
@@ -212,7 +167,7 @@ def affected_windows(
         (x, y)
         for y in ys
         for x in xs
-        if (x >= 0 and y >= 0 and x + 2 < maze.width and y + 2 < maze.height)
+        if x >= 0 and y >= 0 and x + 2 < maze.width and y + 2 < maze.height
     ]
 
 
@@ -220,8 +175,8 @@ def closed_walls_in_window(maze: Maze, top_left: Position) -> int:
     """Count closed internal walls in a 3-by-3 cell window."""
     pos_x, pos_y = top_left
     return sum(
-        (dx < 2 and bool(int(maze[pos_x + dx, pos_y + dy]) & EAST_MASK))
-        + (dy < 2 and bool(int(maze[pos_x + dx, pos_y + dy]) & SOUTH_MASK))
+        (dx < 2 and bool(maze[pos_x + dx, pos_y + dy] & D.EAST))
+        + (dy < 2 and bool(maze[pos_x + dx, pos_y + dy] & D.SOUTH))
         for dy in range(3)
         for dx in range(3)
     )
@@ -237,11 +192,10 @@ def _safe_closed_passages(maze: Maze) -> list[tuple[Position, Position]]:
     """Return unique closed passages that can be opened safely."""
     return [
         (position, neighbor)
-        for y in range(maze.height)
-        for x in range(maze.width)
-        if not maze.is_blocked(position := (x, y))
+        for position in maze.corridors()
         for neighbor in maze.closed_neighbors(position)
-        if position < neighbor and can_open_passage(maze, position, neighbor)
+        if position < neighbor  # Evaluate the position only once
+        and can_open_passage(maze, position, neighbor)
     ]
 
 

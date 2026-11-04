@@ -4,8 +4,8 @@ from .algorithms import (
     edge_count,
     independent_loops,
 )
+from .maze import WALL_DELTA, Maze, Position
 from .maze import Directions as D
-from .maze import Maze, Position
 
 
 def validate_generated_maze(maze: Maze, perfect: bool) -> None:
@@ -45,73 +45,44 @@ def reachable_cells(maze: Maze, start: Position) -> set[Position]:
     if not valid_endpoint(maze, start):
         return set()
 
-    visited: set[Position] = set()
+    visited = {start}
     stack = [start]
 
     while stack:
-        if (current := stack.pop()) in visited:
-            continue
-
-        visited.add(current)
-
-        stack.extend(
-            neighbor
-            for neighbor in maze.connected_neighbors(current)
-            if neighbor not in visited
-        )
+        for neighbor in maze.connected_neighbors(stack.pop()):
+            if neighbor not in visited:
+                visited.add(neighbor)
+                stack.append(neighbor)
 
     return visited
 
 
 def consistent_walls(maze: Maze) -> bool:
     """Return whether both cells agree on every shared wall."""
-    for y in range(maze.height):
-        for x in range(maze.width):
-            current = maze[x, y]
-
-            if x + 1 < maze.width:
-                east_neighbor = maze[x + 1, y]
-                if bool(current & D.EAST) != bool(east_neighbor & D.WEST):
-                    return False
-            if y + 1 < maze.height:
-                south_neighbor = maze[x, y + 1]
-                if bool(current & D.SOUTH) != bool(south_neighbor & D.NORTH):
-                    return False
-
-    return True
+    return all(
+        bool(maze[position] & wall) == bool(maze[neighbor] & opposite)
+        for position in maze.positions()
+        for (dx, dy), (wall, opposite) in WALL_DELTA.items()
+        if maze.in_bounds(
+            neighbor := (position[0] + dx, position[1] + dy),
+        )
+    )
 
 
 def borders_closed(maze: Maze) -> bool:
     """Return whether every external maze border is closed."""
-    for x in range(maze.width):
-        top = maze[x, 0]
-        bottom = maze[x, maze.height - 1]
-
-        if not (top & D.NORTH and bottom & D.SOUTH):
-            return False
-
-    for y in range(maze.height):
-        left = maze[0, y]
-        right = maze[maze.width - 1, y]
-
-        if not (left & D.WEST and right & D.EAST):
-            return False
-
-    return True
+    return all(
+        maze[x, 0] & D.NORTH and maze[x, maze.height - 1] & D.SOUTH
+        for x in range(maze.width)
+    ) and all(
+        maze[0, y] & D.WEST and maze[maze.width - 1, y] & D.EAST
+        for y in range(maze.height)
+    )
 
 
 def is_connected(maze: Maze) -> bool:
     """Return whether all non-blocked cells form one component."""
-    start = next(
-        (
-            pos
-            for y in range(maze.height)
-            for x in range(maze.width)
-            if not maze.is_blocked(pos := (x, y))
-        ),
-        None,
-    )
-
+    start = next(maze.corridors(), None)
     if start is None:
         return False
 
@@ -143,14 +114,8 @@ def key_cells_open(maze: Maze) -> bool:
         (0, maze.height - 1),
         (maze.width - 1, maze.height - 1),
     }
-    center_x = (
-        {maze.width // 2} if maze.width % 2 else {maze.width // 2 - 1, maze.width // 2}
-    )
-    center_y = (
-        {maze.height // 2}
-        if maze.height % 2
-        else {maze.height // 2 - 1, maze.height // 2}
-    )
+    center_x = range((maze.width - 1) // 2, maze.width // 2 + 1)
+    center_y = range((maze.height - 1) // 2, maze.height // 2 + 1)
     centers = {(x, y) for x in center_x for y in center_y}
 
     return all(not maze.is_blocked(position) for position in corners) and any(

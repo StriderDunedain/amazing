@@ -1,4 +1,4 @@
-*This project has been created as part of the 42 curriculum by mtrukhin.*
+*This project has been created as part of the 42 curriculum by mtrukhin and ammirzae.*
 
 # A-Maze-ing
 
@@ -22,6 +22,7 @@ most two real dead ends.
 - Fully closed cells forming a centered “42” when dimensions permit it.
 - Shortest-path calculation and hexadecimal output.
 - Interactive terminal ASCII display.
+- Live carving animation during initial generation and regeneration.
 - Runtime controls for regeneration, path visibility, and colors.
 - Installable `mazegen` Python package.
 
@@ -47,7 +48,6 @@ Other useful commands are:
 
 ```console
 make debug
-make test
 make lint
 make lint-strict
 make build
@@ -72,6 +72,7 @@ with `#` are ignored.
 | `PERFECT` | yes | `True` for one path, `False` for a braided board | `PERFECT=False` |
 | `SEED` | no | Reproducible random seed | `SEED=42` |
 | `ALGORITHM` | no | `growing_tree` (default) or `randomized_prim` | `ALGORITHM=growing_tree` |
+| `ANIMATION_SPEED` | no | Maximum carving steps per second (default `200`) | `ANIMATION_SPEED=100` |
 
 ## Controls
 
@@ -101,6 +102,17 @@ For `PERFECT=False`, a braiding pass opens safe walls at dead ends. It refuses
 walls that would produce a completely open 3-by-3 area, then ensures that at
 least two independent cycles exist.
 
+The terminal redraws after each topology mutation to animate the initial
+carving and every `R` regeneration. Reusable callers can provide an optional
+`on_step` callback for their own progress handling; without one, generation
+runs normally without display overhead. `ANIMATION_SPEED` controls the maximum
+number of displayed carving steps per second; terminal rendering may make the
+observed rate slightly slower.
+
+`MazeGenerator` does not depend on the ASCII view. The CLI owns the small
+adapter that supplies `animate_generation` as the `on_step` callback and owns
+the regeneration callback stored by `ViewState`.
+
 ## Reusing `mazegen`
 
 Build and install the package:
@@ -108,6 +120,22 @@ Build and install the package:
 ```console
 make build
 python3 -m pip install ./mazegen-0.1.0-py3-none-any.whl
+```
+
+`make build` runs the standard `python3 -m build` command. It creates both
+formats under `dist/` and copies them to the repository root for submission:
+
+- The `.whl` file is a ready-to-install Python package. This project is pure
+  Python, so its `py3-none-any` wheel works on Python 3 on any platform.
+- The `.tar.gz` file is a source distribution containing the source code and
+  build metadata. When pip installs it, pip builds an installable package from
+  those sources.
+
+Either format can be installed in a virtual environment:
+
+```console
+python3 -m pip install ./mazegen-0.1.0-py3-none-any.whl
+python3 -m pip install ./mazegen-0.1.0.tar.gz
 ```
 
 Basic use with custom size and seed:
@@ -149,14 +177,17 @@ contains the entry coordinate, exit coordinate, and shortest path encoded with
   that stored result.
 - `Maze` is a read-only topology model; `MazeBuilder` owns checked mutations.
 - Generation algorithms are injected; ASCII is the single built-in view.
+- An optional mutation callback enables animation without coupling generation
+  to terminal rendering.
 - The ASCII renderer consumes presentation state without owning generation.
 - Pattern placement, braiding, subject validation, and file output remain
   direct internal collaborators because the project has only one of each.
 
 ## Team and project management
 
-This was a solo project. The sole developer handled generation, validation,
-configuration, output, visualization, packaging, and testing.
+This project was developed by mtrukhin and ammirzae. The team handled
+generation, validation, configuration, output, visualization, packaging, and
+testing.
 
 The initial plan was to finish generation and output first, then add the visual
 layer. Tight time constraints led to duplicated debug/rendering code and limited

@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from .maze import ALL_WALLS, WALL_DELTA, Maze, Position
@@ -5,9 +6,10 @@ from .maze import ALL_WALLS, WALL_DELTA, Maze, Position
 
 @dataclass(frozen=True)
 class MazeBuilder:
-    """Apply checked topology mutations to a maze."""
+    """Mutate one fixed maze; frozen prevents rebinding the builder fields."""
 
-    _maze: Maze  # How does this get called exactly?
+    _maze: Maze
+    _on_step: Callable[[Maze], None] | None = None
 
     @property
     def maze(self) -> Maze:
@@ -16,9 +18,7 @@ class MazeBuilder:
 
     def block_cells(self, positions: set[Position]) -> None:
         """Mark fully closed in-bounds cells as unavailable corridors."""
-        invalid = positions - {
-            position for position in positions if self._maze.in_bounds(position)
-        }
+        invalid = {pos for pos in positions if not self._maze.in_bounds(pos)}
         if invalid:
             raise ValueError(f"Blocked cells outside the maze: {sorted(invalid)}")
 
@@ -29,6 +29,7 @@ class MazeBuilder:
             raise ValueError(f"Cannot block carved cells: {sorted(carved)}")
 
         self._maze._update_blocked(positions)
+        self._notify()
 
     def open_passage(self, first: Position, second: Position) -> None:
         """Remove the shared wall between two adjacent corridor cells."""
@@ -48,3 +49,9 @@ class MazeBuilder:
 
         self._maze._set_walls(first, self._maze[first] & ~first_wall)
         self._maze._set_walls(second, self._maze[second] & ~second_wall)
+        self._notify()
+
+    def _notify(self) -> None:
+        """Report a completed topology mutation when animation is enabled."""
+        if self._on_step is not None:
+            self._on_step(self._maze)

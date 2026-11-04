@@ -1,33 +1,20 @@
 import sys
 import termios
+import time
 import tty
 from collections.abc import Set as AbstractSet
 from enum import Enum, auto
 
 from .colors import ANSI_RESET, color
 from .maze import Directions as D
-from .maze import Position
+from .maze import Maze, Position
+from .pattern import pattern_warning
 from .view_state import ViewState
 
 CLEAR_SCREEN = "\033[2J\033[H"
 
-NORTH_MASK = int(D.NORTH)
-EAST_MASK = int(D.EAST)
-SOUTH_MASK = int(D.SOUTH)
-WEST_MASK = int(D.WEST)
-
 ENTRY_COLOR_INDEX = 2
 EXIT_COLOR_INDEX = 1
-
-
-class CellRole(Enum):
-    """Describe the visual meaning of a maze cell."""
-
-    NORMAL = auto()
-    BLOCKED = auto()
-    ENTRY = auto()
-    EXIT = auto()
-    PATH = auto()
 
 
 class Command(Enum):
@@ -51,56 +38,10 @@ KEY_COMMANDS = {
     "\x1b": Command.QUIT,
 }
 
-CELL_MARKERS = {
-    CellRole.BLOCKED: "###",
-    CellRole.ENTRY: " S ",
-    CellRole.EXIT: " E ",
-    CellRole.PATH: " ■ ",
-}
-
 
 def visible_path(state: ViewState) -> frozenset[Position]:
     """Return the path cells when shortest-path display is enabled."""
-    if not state.show_path:
-        return frozenset()
-    return frozenset(state.path)
-
-
-def cell_role(
-    state: ViewState,
-    position: Position,
-    path: AbstractSet[Position] | None = None,
-) -> CellRole:
-    """Resolve a cell's visual role with a consistent priority."""
-    if state.maze.is_blocked(position):
-        return CellRole.BLOCKED
-    if position == state.entry:
-        return CellRole.ENTRY
-    if position == state.exit_:
-        return CellRole.EXIT
-    if position in (visible_path(state) if path is None else path):
-        return CellRole.PATH
-    return CellRole.NORMAL
-
-
-def role_color_index(state: ViewState, role: CellRole) -> int | None:
-    """Return the palette index for a visible cell role."""
-    match role:
-        case CellRole.BLOCKED:
-            return state.pattern_color
-        case CellRole.ENTRY:
-            return ENTRY_COLOR_INDEX
-        case CellRole.EXIT:
-            return EXIT_COLOR_INDEX
-        case CellRole.PATH:
-            return state.path_color
-        case CellRole.NORMAL:
-            return None
-
-
-def command_from_key(key: str) -> Command | None:
-    """Translate one terminal key into a command."""
-    return KEY_COMMANDS.get(key.lower())
+    return frozenset(state.path) if state.show_path else frozenset()
 
 
 def handle_command(state: ViewState, command: Command) -> bool:
@@ -123,7 +64,24 @@ def handle_command(state: ViewState, command: Command) -> bool:
 
 def paint(text: str, color_index: int) -> str:
     """Wrap text in the selected ANSI color and a reset sequence."""
-    return color(color_index).ansi + text + ANSI_RESET
+    return f"{color(color_index).ansi}{text}{ANSI_RESET}"
+
+
+def render_cell(
+    state: ViewState,
+    position: Position,
+    path: AbstractSet[Position],
+) -> str:
+    """Render a cell marker using blocked, endpoint, then path priority."""
+    if state.maze.is_blocked(position):
+        return paint("###", state.pattern_color)
+    if position == state.entry:
+        return paint(" S ", ENTRY_COLOR_INDEX)
+    if position == state.exit_:
+        return paint(" E ", EXIT_COLOR_INDEX)
+    if position in path:
+        return paint(" ■ ", state.path_color)
+    return "   "
 
 
 def render_ascii(state: ViewState) -> str:
@@ -142,38 +100,54 @@ def render_ascii(state: ViewState) -> str:
 
         for x in range(maze.width):
             position = (x, y)
-            walls = int(maze[position])
+            walls = maze[position]
 
-            top.append(painted_corner)
-            top.append(painted_horizontal if walls & NORTH_MASK else "   ")
-            middle.append(painted_vertical if walls & WEST_MASK else " ")
-
-            role = cell_role(state, position, path)
-            marker = CELL_MARKERS.get(role)
-            color_index = role_color_index(state, role)
-
-            middle.append(
-                "   "
-                if marker is None or color_index is None
-                else paint(marker, color_index),
+            top.extend(
+                (painted_corner, painted_horizontal if walls & D.NORTH else "   "),
+            )
+            middle.extend(
+                (
+                    painted_vertical if walls & D.WEST else " ",
+                    render_cell(state, position, path),
+                ),
             )
 
         top.append(painted_corner)
-        right_walls = int(maze[maze.width - 1, y])
-        middle.append(painted_vertical if right_walls & EAST_MASK else " ")
+        right_walls = maze[maze.width - 1, y]
+        middle.append(painted_vertical if right_walls & D.EAST else " ")
         lines.extend(("".join(top), "".join(middle)))
 
-    bottom: list[str] = []
-
-    for x in range(maze.width):
-        walls = int(maze[x, maze.height - 1])
-        bottom.append(painted_corner)
-        bottom.append(painted_horizontal if walls & SOUTH_MASK else "   ")
-
-    bottom.append(painted_corner)
-    lines.append("".join(bottom))
+    bottom = "".join(
+        painted_corner
+        + (painted_horizontal if maze[x, maze.height - 1] & D.SOUTH else "   ")
+        for x in range(maze.width)
+    )
+    lines.append(bottom + painted_corner)
 
     return "\n".join(lines)
+
+
+def animate_generation(
+    maze: Maze,
+    entry: Position,
+    exit_: Position,
+    cells_per_second: int,
+) -> None:
+    """Draw one intermediate generation frame in an interactive terminal."""
+    if not sys.stdout.isatty():
+        return
+    if cells_per_second <= 0:
+        raise ValueError("Animation speed must be positive")
+
+    state = ViewState(
+        maze=maze,
+        entry=entry,
+        exit_=exit_,
+        path=[],
+    )
+    print(CLEAR_SCREEN, end="")
+    print(render_ascii(state))
+    time.sleep(1 / cells_per_second)
 
 
 def read_key() -> str:
@@ -185,11 +159,7 @@ def read_key() -> str:
         tty.setraw(fd)
         return sys.stdin.read(1)
     finally:
-        termios.tcsetattr(
-            fd,
-            termios.TCSADRAIN,
-            previous,
-        )
+        termios.tcsetattr(fd, termios.TCSADRAIN, previous)
 
 
 def print_controls(state: ViewState) -> None:
@@ -203,6 +173,8 @@ def print_controls(state: ViewState) -> None:
         f"42={color(state.pattern_color).name}  "
         f"path={color(state.path_color).name}",
     )
+    if warning := pattern_warning(state.maze.width, state.maze.height):
+        print(warning)
 
 
 def run_ascii(state: ViewState) -> None:
@@ -214,7 +186,7 @@ def run_ascii(state: ViewState) -> None:
             print(render_ascii(state))
             print_controls(state)
 
-            command = command_from_key(read_key())
+            command = KEY_COMMANDS.get(read_key().lower())
 
             if command is not None and not handle_command(state, command):
                 return

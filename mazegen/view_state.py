@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from .colors import PALETTE
 from .maze import Maze, Position
 
-MazeWithPath = tuple[Maze, list[Position]]
+DEFAULT_WALL_COLOR = 0  # white
+DEFAULT_PATTERN_COLOR = 6  # cyan
+DEFAULT_PATH_COLOR = 3  # yellow
 
 
 @dataclass
@@ -14,17 +16,18 @@ class ViewState:
     maze: Maze
     entry: Position
     exit_: Position
-    generate: Callable[[], MazeWithPath]
     path: list[Position]
+    regenerate_maze: Callable[[], tuple[Maze, list[Position]]] | None = None
 
     show_path: bool = False
-    wall_color: int = 0
-    pattern_color: int = 6
-    path_color: int = 3
+    wall_color: int = DEFAULT_WALL_COLOR
+    pattern_color: int = DEFAULT_PATTERN_COLOR
+    path_color: int = DEFAULT_PATH_COLOR
 
     def regenerate(self) -> None:
         """Replace the maze and its already-calculated output path."""
-        self.maze, self.path = self.generate()
+        if self.regenerate_maze is not None:
+            self.maze, self.path = self.regenerate_maze()
 
     def toggle_path(self) -> None:
         """Toggle shortest-path visibility."""
